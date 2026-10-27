@@ -1,0 +1,50 @@
+{
+  "description": "Unconstrained local tensor single-harmonic FS_ext screening",
+  "total_cases": 8000,
+  "candidate_evaluations": 24000,
+  "families": [
+    "proportional",
+    "normal_offphase",
+    "shear_rotating",
+    "biaxial_mix",
+    "principal_rotation",
+    "noncoaxial_mean",
+    "mixed_3d"
+  ],
+  "selected_families": [
+    "normal_offphase",
+    "biaxial_mix",
+    "principal_rotation",
+    "noncoaxial_mean"
+  ],
+  "selected_ids": [
+    2213,
+    1739,
+    6920,
+    7348
+  ],
+  "config": {
+    "young_mpa": 210000.0,
+    "nu": 0.3,
+    "sigma_y_mpa": 600.0,
+    "k_fs": 0.4,
+    "seed": 44713,
+    "n_cases": 8000,
+    "screen_normals": 600,
+    "screen_path_angles": 49,
+    "shortlist_per_family": 9,
+    "von_mises_fraction": [
+      0.3,
+      0.92
+    ]
+  },
+  "interpretation": "Selected worst candidate of each of four distinct tensor structures; not four unconstrained globally largest values",
+  "assumptions": [
+    "Linear elastic isotropic strain from stress",
+    "General symmetric three-dimensional tensors, no specimen or rig mapping",
+    "Von Mises normalisation is numerical and sampled, not rig feasibility",
+    "Only single-frequency harmonic histories; FS_ext only",
+    "MCC equals longest chord for a complete harmonic ellipse",
+    "Numerical refined scanning and differential evolution are not proofs of global optimality"
+  ]
+}
