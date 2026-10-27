@@ -1,0 +1,76 @@
+{
+  "description": "Single harmonic FS_ext SeAn-CP load-space search",
+  "input": {
+    "config": {
+      "geometry": {
+        "D_int": 12.0,
+        "thickness": 1.5
+      },
+      "material": {
+        "E": 210000.0,
+        "nu": 0.3
+      },
+      "sigma_y_mpa": 900.0,
+      "k_fs": 0.4,
+      "end_condition": "closed",
+      "max_pressure_mpa": 40.0,
+      "max_axial_amplitude_n": 18000.0,
+      "max_torque_amplitude_nmm": 150000.0,
+      "screening_fraction": 0.9,
+      "min_reference_fs": 1e-07,
+      "seed": 23109
+    },
+    "n_per_family": 18,
+    "version": "harmonic-fs-ext-phase3-v1",
+    "screen_grid": [
+      31,
+      61
+    ],
+    "top_n": 4
+  },
+  "screening": {
+    "candidates": 118,
+    "accepted": 112,
+    "rejected_vm_sampled": 6,
+    "cache_reused": true,
+    "screen_radii_mm": [
+      6.0,
+      6.75,
+      7.5
+    ],
+    "fine_radii_mm": [
+      6.0,
+      6.15,
+      6.3,
+      6.45,
+      6.6,
+      6.75,
+      6.9,
+      7.05,
+      7.2,
+      7.35,
+      7.5
+    ],
+    "fine_grid": [
+      121,
+      241
+    ]
+  },
+  "initial_worst_ids": [
+    "torque_90_0014",
+    "general_0012",
+    "mean_shifted_0008",
+    "mixed_90_0004"
+  ],
+  "final_worst_ids": [
+    "torque_90_0014",
+    "general_0012",
+    "mean_shifted_0008",
+    "mixed_90_0004"
+  ],
+  "cautions": [
+    "Illustrative yield strength; no physical machine feasibility asserted",
+    "Full-plane comparator is numerical, not a certified global bound",
+    "MCC and longest chord coincide for single harmonic ellipses"
+  ]
+}
