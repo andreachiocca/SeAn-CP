@@ -213,3 +213,36 @@ def test_invalid_inputs_and_boundary_modes(geom,steel):
         HarmonicLoad(float('inf'))
     with pytest.raises(ValueError):
         stress_tensor(geom,'inner',p_i=float('nan'))
+
+
+def test_combined_loads_match_original_main_v3_reference(geom):
+    """Regression values from MAIN_v3.py, model='thick', p=32.5,
+    F=15904.31 N, torque=43000 N mm, evaluated at all three radii.
+    """
+    reference = {
+        'inner': [-32.5, 148.05555555555554, 307.777733626258, 87.92420021858797],
+        'mean': [-13.552812071330585, 129.10836762688615, 307.777733626258, 98.91472524591147],
+        'outer': [0.0, 115.55555555555556, 307.777733626258, 109.90525027323496],
+    }
+    for surface, expected in reference.items():
+        stress = stress_tensor(geom, surface, p_i=32.5, force=15904.31, torque=43000)
+        assert [stress[0,0], stress[1,1], stress[2,2], stress[1,2]] == pytest.approx(expected)
+
+
+def test_phase2_history_feeds_both_seancp_and_full_scan(geom, steel):
+    from seancp import seancp_fs_ext, full_plane_scan
+    loads = TubeLoads(
+        p_i=HarmonicLoad.from_amplitude_phase(26,6,math.pi/4),
+        force=HarmonicLoad.from_amplitude_phase(0,12000,0),
+        torque=HarmonicLoad.from_amplitude_phase(0,42000,math.pi/2),
+    )
+    history = harmonic_history(geom,steel,loads,'inner')
+    for algorithm in ('longest_chord','mcc','mce'):
+        semi = seancp_fs_ext(history, algorithm=algorithm, sigma_y=900,
+                             samples_per_path=75)
+        full, normal = full_plane_scan(history, algorithm=algorithm,
+                                       sigma_y=900, n_theta=45, n_phi=91)
+        assert len(semi.paths) == 3
+        assert semi.value > 0
+        assert full >= semi.value - 1e-12
+        assert np.linalg.norm(normal) == pytest.approx(1)
