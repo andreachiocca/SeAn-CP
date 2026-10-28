@@ -1,0 +1,86 @@
+STAGGERED TWO-DIMPLE HOLLOW TUBE | ANSYS MECHANICAL APDL 2025 R2
+================================================================
+PURPOSE
+Explore a NEW 3D specimen configuration, distinct from the earlier single
+one-sided notch, with the same test machine's pressure + axial force + torque.
+The two unequal exterior spherical dimples are 90 degrees apart around the
+tube and 6 mm apart along its length. The inner bore is not deliberately cut.
+This is a screening hypothesis; NO FE run has been performed in this package.
+
+GEOMETRY (mm)
+Inner radius RI=6, outer radius RO=7.5, length 48.
+Notch A: at +X, z=-3; spherical cutter R=1.45, depth=0.50,
+         nominal remaining wall thickness=1.00.
+Notch B: at +Y, z=+3; spherical cutter R=1.75, depth=0.65,
+         nominal remaining wall thickness=0.85.
+Mesh: global ESIZE=0.50 mm, quadratic SOLID187 tetrahedra. This is NOT
+claimed to be mesh-converged; run 0.25 mm after basic geometry validation.
+
+WHICH APDL MACRO TO RUN?
+1. FIRST, in a NEW EMPTY MAPDL working directory, execute
+       03_RUN_staggered_dimples_UNIT.mac
+   This performs 3 independent STATIC influence solves (TIME=1,2,3):
+     1: internal pressure 1 MPa (closed-end thrust included),
+     2: additional axial force 1000 N,
+     3: torque 1000 N mm.
+   These ARE NOT the 3 moments of a time history. They are LINEAR BASIS solutions.
+   It should produce fe_stress.csv, fe_strain.csv, fe_coordinates.csv,
+   fe_result_checks.csv and fe_gauge_summary.csv. The first three have rows
+   [basis (1,2,3), element_ID, xx,yy,zz,xy,yz,xz]. Strain shear exported as
+   ANSYS ENGINEERING shear; Python converts this to tensorial shear.
+   The two gauge neighbourhoods (including subsurface elements) are combined.
+   The FE files can be processed by the existing
+   SeAn-CP examples/notched_tube_search.py Python pipeline.
+
+2. OPTIONAL, in a SEPARATE NEW EMPTY MAPDL working directory, execute
+       04_RUN_staggered_dimples_PHASED.mac
+   This performs three static Fourier-component solves (mean, sine, cosine)
+   for a distinct, USER-ADJUSTABLE harmonic loading program:
+
+   p(t) = 18 MPa + 12 MPa sin(omega*t + 45 deg)    [6..30 MPa]
+   F(t) = 500 N + 5000 N sin(omega*t)              [-4500..5500 N]
+   T(t) = 1500 N mm + 26000 N mm cos(omega*t)     [-24500..27500 N mm]
+
+   The three input channels are independently phased; pressure stays positive.
+   No claim is made that these amplitudes are within YOUR rig's rated limits
+   or that they produce a large SeAn-CP error. They are a contrasting
+   non-proportional case, not the previously identified best load.
+
+INSTRUCTIONS
+- Run only ONE of the two listed .mac files in each working directory.
+- Both are SELF-CONTAINED: no /INPUT or *USE external macros required.
+- All output filenames are intentionally shared; do not run two decks in the
+  same working directory because they overwrite one another's CSVs and .rst.
+- Inspect plotted geometry and mesh. Check BOTH dimples are exterior, remain
+  separate, and do not penetrate the inner pressure bore.
+- Verify resultant reactions, especially applied torque and axial thrust.
+- Send the 5 CSVs plus your ANSYS .err and .out logs, and a mesh screenshot.
+
+NEXT PYTHON SEARCH AFTER THE UNIT RUN
+In the SeAn-CP project containing Phase 7, use:
+  python examples/notched_tube_search.py \
+    --basis-dir /path/to/UNIT-run-directory \
+    --out results/two_dimple_screen \
+    --trials 100 --algorithm mce --screen-elements 12
+The script uses illustrative default machine and yield limits. Replace those
+with measured real limits before interpreting the search as feasible. Repeat
+with --algorithm longest_chord. MCC is identical to longest chord for exact
+single-frequency harmonic shear ellipses. For final conclusions, use all
+exported elements and mesh convergence; 12-element screening is preliminary.
+
+DIRECT FOURIER-CASE POSTPROCESSING
+  python examples/postprocess_apdl_fs_ext.py \
+    --fe-dir /path/to/PHASED-run-directory \
+    --output results/two_dimple_phased --case-id 0 \
+    --algorithm mce --max-elements 12
+Use --max-elements 0 eventually, once runtime permits, for full gauge coverage.
+This mode is DIFFERENT from unit-basis reading: do NOT pass the UNIT files to
+postprocess_apdl_fs_ext.py as mean/sine/cosine.
+
+DISCLAIMER
+APDL is NOT installed in the authoring environment. These models were
+constructed using the verified previous standalone macro as baseline and
+checked statically for syntax/structure, but the new Boolean operations and
+mesh are NOT solver-verified. Review .err/.out, pressure faces, loads and
+mesh convergence before trusting results. Stress concentration alone does not
+prove a SeAn-CP limitation; only the FE-derived FS_ext plane search will.
