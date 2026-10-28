@@ -1,3 +1,6 @@
+! 2026-10-28 RST FIX V2: SET,LAST plus pseudo-time check.
+! User run validated first unit pressure, but SET,IC failed on load step lookup.
+! All three unit bases must export, or analysis stops with diagnostics.
 ! SELF-CONTAINED ANSYS MAPDL input - no other .mac files needed.
 ! Generated from PR #7 baseline on 2026-10-28 after error:
 !   Cannot find macro file named export_notch.
@@ -36,6 +39,8 @@ BASIS_MODE=1
 *CFOPEN,fe_strain,csv
 *CFCLOS
 *CFOPEN,fe_coordinates,csv
+*CFCLOS
+*CFOPEN,fe_result_checks,csv
 *CFCLOS
 ! 1=closed ends and pressure thrust acts through wall, 0=compensated by rig.
 CLOSED_END=1
@@ -203,7 +208,21 @@ OUTRES,ALL,ALL
 ! The selected region includes the SUBSURFACE, not only free notch face.
 FINISH
 /POST1
-SET,IC
+! SET,IC requests load-step IC, not the IC-th available result set.
+! Solve stages can be indexed as substeps of one load step in the .rst.
+! Therefore read the newest result and verify its pseudo-time explicitly.
+SET,LAST
+*GET,RES_TIME,ACTIVE,0,SET,TIME
+*GET,RES_COUNT,ACTIVE,0,SET,NSET
+*CFOPEN,fe_result_checks,csv,,APPEND
+*VWRITE,IC,RES_TIME,RES_COUNT
+(3(E18.10,:,','))
+*CFCLOS
+*IF,ABS(RES_TIME-IC),GT,0.00001,THEN
+ /COM,ERROR: result set time does not match unit-load index.
+ /COM,ERROR: inspect ANSYS .out/.err, do not use partial CSVs.
+ /EXIT,NOSAVE
+*ENDIF
 RSYS,0
 CSYS,0
 ALLSEL,ALL

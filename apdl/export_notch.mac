@@ -3,7 +3,13 @@
 ! The selected region includes the SUBSURFACE, not only free notch face.
 FINISH
 /POST1
-SET,IC
+! Select newest result by availability, not assumed load-step index.
+SET,LAST
+*GET,RES_TIME,ACTIVE,0,SET,TIME
+*IF,ABS(RES_TIME-IC),GT,1E-5,THEN
+ /COM,ERROR: result time did not match requested independent load.
+ /EXIT,NOSAVE
+*ENDIF
 RSYS,0
 CSYS,0
 ALLSEL,ALL
