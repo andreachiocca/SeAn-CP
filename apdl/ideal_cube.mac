@@ -1,0 +1,133 @@
+! Phase 6A: exact-traction benchmark (NOT a real fatigue fixture).
+! Run in the apdl directory. Choose CASEID=2213,1739,6920,7348.
+! Units mm N MPa. Three static Fourier basis solves, 1=mean 2=sin 3=cos.
+! Face forces are consistent trapezoidal nodal resultants of t=sigma*n.
+FINISH
+/CLEAR,START
+/FILNAME,cube_model
+/PREP7
+CASEID=2213
+*DIM,ST,ARRAY,3,6
+! order Sxx,Syy,Szz,Sxy,Syz,Sxz
+*IF,CASEID,EQ,2213,THEN
+ /INPUT,case_2213,mac
+*ELSEIF,CASEID,EQ,1739,THEN
+ /INPUT,case_1739,mac
+*ELSEIF,CASEID,EQ,6920,THEN
+ /INPUT,case_6920,mac
+*ELSE
+ /INPUT,case_7348,mac
+*ENDIF
+E_MOD=210000
+POISS=0.30
+SIDE=5
+DIV=10
+GAUGE=1.0
+H=SIDE/DIV
+NP=DIV+1
+ET,1,185
+MP,EX,1,E_MOD
+MP,PRXY,1,POISS
+TYPE,1
+MAT,1
+*DO,K,0,DIV
+ *DO,J,0,DIV
+  *DO,I,0,DIV
+   ID=1+I+NP*J+NP*NP*K
+   N,ID,-SIDE/2+I*H,-SIDE/2+J*H,-SIDE/2+K*H
+  *ENDDO
+ *ENDDO
+*ENDDO
+*DO,K,0,DIV-1
+ *DO,J,0,DIV-1
+  *DO,I,0,DIV-1
+   A=1+I+NP*J+NP*NP*K
+   B=A+1
+   C=B+NP
+   D=A+NP
+   E,A,B,C,D,A+NP*NP,B+NP*NP,C+NP*NP,D+NP*NP
+  *ENDDO
+ *ENDDO
+*ENDDO
+! Minimal six rigid-body constraints. No face is clamped.
+D,1,UX,0
+D,1,UY,0
+D,1,UZ,0
+ID2=1+DIV
+D,ID2,UY,0
+D,ID2,UZ,0
+ID3=1+DIV*NP
+D,ID3,UZ,0
+FINISH
+/SOLU
+ANTYPE,STATIC
+NLGEOM,OFF
+OUTRES,ALL,ALL
+*DO,IC,1,3
+ ALLSEL,ALL
+ FDELE,ALL,ALL
+ XX=ST(IC,1)
+ YY=ST(IC,2)
+ ZZ=ST(IC,3)
+ XY=ST(IC,4)
+ YZ=ST(IC,5)
+ XZ=ST(IC,6)
+ *DO,K,0,DIV
+  *DO,J,0,DIV
+   *DO,I,0,DIV
+    ID=1+I+NP*J+NP*NP*K
+    SNX=0
+    SNY=0
+    SNZ=0
+    *IF,I,EQ,0,THEN
+     SNX=-1
+    *ENDIF
+    *IF,I,EQ,DIV,THEN
+     SNX=1
+    *ENDIF
+    *IF,J,EQ,0,THEN
+     SNY=-1
+    *ENDIF
+    *IF,J,EQ,DIV,THEN
+     SNY=1
+    *ENDIF
+    *IF,K,EQ,0,THEN
+     SNZ=-1
+    *ENDIF
+    *IF,K,EQ,DIV,THEN
+     SNZ=1
+    *ENDIF
+    WX=1
+    WY=1
+    WZ=1
+    *IF,ABS(SNX),EQ,1,THEN
+     WX=0.5
+    *ENDIF
+    *IF,ABS(SNY),EQ,1,THEN
+     WY=0.5
+    *ENDIF
+    *IF,ABS(SNZ),EQ,1,THEN
+     WZ=0.5
+    *ENDIF
+    ! x-face area weights: WY*WZ; y-face: WX*WZ; z-face: WX*WY.
+    FX=H*H*(SNX*XX*WY*WZ+SNY*XY*WX*WZ+SNZ*XZ*WX*WY)
+    FY=H*H*(SNX*XY*WY*WZ+SNY*YY*WX*WZ+SNZ*YZ*WX*WY)
+    FZ=H*H*(SNX*XZ*WY*WZ+SNY*YZ*WX*WZ+SNZ*ZZ*WX*WY)
+    *IF,ABS(FX),GT,1E-12,THEN
+     F,ID,FX,FX
+    *ENDIF
+    *IF,ABS(FY),GT,1E-12,THEN
+     F,ID,FY,FY
+    *ENDIF
+    *IF,ABS(FZ),GT,1E-12,THEN
+     F,ID,FZ,FZ
+    *ENDIF
+   *ENDDO
+  *ENDDO
+ *ENDDO
+ TIME,IC
+ SOLVE
+ *USE,export_critical
+ /SOLU
+*ENDDO
+FINISH

@@ -1,0 +1,94 @@
+! Phase 6B: CONCEPT six-arm metallic specimen for case 2213 only.
+! Six synchronized tension/compression actuators, three independent signals.
+! Unlike the ideal cube, applied arm-end loads do not guarantee that the
+! central stresses equal the input target. Postprocess *actual* FE values.
+! No real rig grip model. No physical dimensions or actuator certification.
+FINISH
+/CLEAR,START
+/FILNAME,six_arm_model
+/PREP7
+*DIM,ST,ARRAY,3,6
+/INPUT,case_2213,mac
+E_MOD=210000
+POISS=.30
+CORE=6
+ARM_W=5
+ARM_L=18
+HCORE=CORE/2
+HARM=ARM_W/2
+ENDX=HCORE+ARM_L
+AREA=ARM_W*ARM_W
+GAUGE=1.3
+ET,1,187
+MP,EX,1,E_MOD
+MP,PRXY,1,POISS
+BLOCK,-HCORE,HCORE,-HCORE,HCORE,-HCORE,HCORE
+BLOCK,HCORE,ENDX,-HARM,HARM,-HARM,HARM
+BLOCK,-ENDX,-HCORE,-HARM,HARM,-HARM,HARM
+BLOCK,-HARM,HARM,HCORE,ENDX,-HARM,HARM
+BLOCK,-HARM,HARM,-ENDX,-HCORE,-HARM,HARM
+BLOCK,-HARM,HARM,-HARM,HARM,HCORE,ENDX
+BLOCK,-HARM,HARM,-HARM,HARM,-ENDX,-HCORE
+VGLUE,ALL
+ALLSEL,ALL
+MSHKEY,0
+ESIZE,1.8
+VMESH,ALL
+! Prevent rigid body motion with a minimal three-node pin set.
+A=NODE(-ENDX,-HARM,-HARM)
+B=NODE(ENDX,-HARM,-HARM)
+C=NODE(-HARM,-ENDX,-HARM)
+D,A,UX,0
+D,A,UY,0
+D,A,UZ,0
+D,B,UY,0
+D,B,UZ,0
+D,C,UZ,0
+FINISH
+/SOLU
+ANTYPE,STATIC
+NLGEOM,OFF
+OUTRES,ALL,ALL
+*DO,IC,1,3
+ ALLSEL,ALL
+ FDELE,ALL,ALL
+ ! Each face receives a uniform NODAL resultant. Calibrate the
+ ! actual core stress using influence matrix after MAPDL execution.
+ *DO,AX,1,3
+  *DO,ISIGN,1,2
+   FACE=ENDX
+   SG=1
+   *IF,ISIGN,EQ,1,THEN
+    FACE=-ENDX
+    SG=-1
+   *ENDIF
+   ALLSEL,ALL
+   *IF,AX,EQ,1,THEN
+    NSEL,S,LOC,X,FACE
+   *ELSEIF,AX,EQ,2,THEN
+    NSEL,S,LOC,Y,FACE
+   *ELSE
+    NSEL,S,LOC,Z,FACE
+   *ENDIF
+   *GET,NN,NODE,0,COUNT
+   *IF,NN,LT,1,THEN
+    /COM,ERROR: no nodes found on an actuator face
+    /EXIT,NOSAVE
+   *ENDIF
+   VAL=SG*ST(IC,AX)*AREA/NN
+   *IF,AX,EQ,1,THEN
+    F,ALL,FX,VAL
+   *ELSEIF,AX,EQ,2,THEN
+    F,ALL,FY,VAL
+   *ELSE
+    F,ALL,FZ,VAL
+   *ENDIF
+  *ENDDO
+ *ENDDO
+ ALLSEL,ALL
+ TIME,IC
+ SOLVE
+ *USE,export_critical
+ /SOLU
+*ENDDO
+FINISH
