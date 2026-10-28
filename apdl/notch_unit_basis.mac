@@ -1,0 +1,6 @@
+! Three SEPARATE response solves, not harmonic coefficients.
+! BASIS 1: 1 MPa bore pressure; BASIS 2: 1000 N axial machine force;
+! BASIS 3: 1000 N mm applied torque. Pressure thrust automatically included.
+CTRL(1,1)=1
+CTRL(2,2)=1000
+CTRL(3,3)=1000

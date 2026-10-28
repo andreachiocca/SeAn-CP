@@ -1,0 +1,171 @@
+! Phase 6 follow-up: off-axis SINGLE exterior spherical notch on hollow tube.
+! Three independent static solves, representing either harmonic mean/sine/cosine
+! or the influence functions for p, F, T. No ANSYS execution claimed.
+! Local Cartesian axes: Z=tube axis, X=notch radial direction (+X), Y=tangent.
+! mm, N, MPa, N mm. Full 360-degree 3-D mesh. No axisymmetric shortcut.
+! Run in apdl directory. Set BASIS_MODE=1 for influence calibration.
+FINISH
+/CLEAR,START
+/FILNAME,notched_tube
+/PREP7
+RI=6.0
+RO=7.5
+LENGTH=48.0
+NOTCH_R=1.5
+NOTCH_D=0.45
+NOTCH_ON=1
+MESH_H=0.75
+GAUGE_X=2.0
+GAUGE_Y=2.5
+GAUGE_Z=2.5
+E_MOD=210000
+POISS=0.30
+! 1: unit pressure (1 MPa), force (1000 N), torque (1000 N mm).
+! 0: physically constrained harmonic mean/sine/cosine, from notch_loads.mac.
+BASIS_MODE=0
+! 1=closed ends and pressure thrust acts through wall, 0=compensated by rig.
+CLOSED_END=1
+*IF,RI,LE,0,THEN
+ /COM,ERROR: RI must be positive.
+ /EXIT,NOSAVE
+*ENDIF
+*IF,RO,LE,RI,THEN
+ /COM,ERROR: RO must exceed RI.
+ /EXIT,NOSAVE
+*ENDIF
+*IF,NOTCH_D,LE,0,THEN
+ /COM,ERROR: notch depth must be positive.
+ /EXIT,NOSAVE
+*ENDIF
+*IF,NOTCH_D,GE,RO-RI,THEN
+ /COM,ERROR: notch penetrates full wall.
+ /EXIT,NOSAVE
+*ENDIF
+*IF,NOTCH_D,GE,NOTCH_R,THEN
+ /COM,ERROR: require shallow spherical dimple (D < R).
+ /EXIT,NOSAVE
+*ENDIF
+*DIM,CTRL,ARRAY,3,3
+*IF,BASIS_MODE,EQ,1,THEN
+ /INPUT,notch_unit_basis,mac
+*ELSE
+ /INPUT,notch_loads,mac
+*ENDIF
+ET,1,187
+MP,EX,1,E_MOD
+MP,PRXY,1,POISS
+TYPE,1
+MAT,1
+! Cylinder working plane begins at Z=-LENGTH/2.
+WPCSYS,-1,0
+WPOFFS,0,0,-LENGTH/2
+CYL4,0,0,RI,0,RO,360,LENGTH
+*GET,TUBEID,VOLU,0,NUM,MAX
+! Return WP to global; spherical cutter lies OUTSIDE wall in +X.
+*IF,NOTCH_ON,EQ,1,THEN
+ WPCSYS,-1,0
+ NOTCH_C=RO+NOTCH_R-NOTCH_D
+ WPOFFS,NOTCH_C,0,0
+ SPHERE,0,NOTCH_R
+ *GET,TOOLID,VOLU,0,NUM,MAX
+ ! Boolean creates genuine off-axis external free notch; bore remains intact.
+ VSBV,TUBEID,TOOLID
+*ENDIF
+ALLSEL,ALL
+*GET,NVOL,VOLU,0,COUNT
+*IF,NVOL,LT,1,THEN
+ /COM,ERROR: no surviving solid after notch cut.
+ /EXIT,NOSAVE
+*ENDIF
+! Reset WP and construct full 3D unstructured quadratic tetrahedral mesh.
+WPCSYS,-1,0
+CSYS,0
+MSHKEY,0
+MSHAPE,1,3
+ESIZE,MESH_H
+VMESH,ALL
+ALLSEL,ALL
+*GET,NE,ELEM,0,COUNT
+*IF,NE,LT,1,THEN
+ /COM,ERROR: mesh empty.
+ /EXIT,NOSAVE
+*ENDIF
+! Rigid grips idealised with bottom annular end fixed in all translation.
+! This is a SCREENING model: actual grips, shoulder fillets and seal are absent.
+EPSLOC=0.02
+NSEL,S,LOC,Z,-LENGTH/2-EPSLOC,-LENGTH/2+EPSLOC
+*GET,NBASE,NODE,0,COUNT
+*IF,NBASE,LT,1,THEN
+ /COM,ERROR: bottom end nodes absent.
+ /EXIT,NOSAVE
+*ENDIF
+D,ALL,UX,0
+D,ALL,UY,0
+D,ALL,UZ,0
+ALLSEL,ALL
+! Compute top end nodal moment denominator, for balanced tangential
+! nodal loading: FX=-T*Y/SUM(R**2), FY=T*X/SUM(R**2).
+NSEL,S,LOC,Z,LENGTH/2-EPSLOC,LENGTH/2+EPSLOC
+*GET,NTOP,NODE,0,COUNT
+*IF,NTOP,LT,1,THEN
+ /COM,ERROR: top end nodes absent.
+ /EXIT,NOSAVE
+*ENDIF
+NR2SUM=0
+NID=NDNEXT(0)
+*DO,JJ,1,NTOP
+ *GET,XN,NODE,NID,LOC,X
+ *GET,YN,NODE,NID,LOC,Y
+ NR2SUM=NR2SUM+XN*XN+YN*YN
+ NID=NDNEXT(NID)
+*ENDDO
+ALLSEL,ALL
+FINISH
+/SOLU
+ANTYPE,STATIC
+NLGEOM,OFF
+OUTRES,ALL,ALL
+*DO,IC,1,3
+ ALLSEL,ALL
+ FDELE,ALL,ALL
+ SFDELE,ALL,PRES
+ PI=CTRL(IC,1)
+ FA=CTRL(IC,2)
+ TORQ=CTRL(IC,3)
+ ! Only the internal CYLINDRICAL bore is pressurised; no pressure on the
+ ! external notch. CSYS,1 gives radial coordinate in NSEL,LOC,X.
+ CSYS,1
+ NSEL,S,LOC,X,RI-0.01,RI+0.01
+ *GET,NBOR,NODE,0,COUNT
+ *IF,NBOR,LT,1,THEN
+  /COM,ERROR: no internal bore nodes selected.
+  /EXIT,NOSAVE
+ *ENDIF
+ SF,ALL,PRES,PI
+ ALLSEL,ALL
+ CSYS,0
+ ! Pressure thrust from closed ends is added once to top axial load.
+ ! Machine axial force FA is independent of this hydraulic thrust.
+ FATOT=FA
+ *IF,CLOSED_END,EQ,1,THEN
+  FATOT=FA+PI*3.141592653589793*RI*RI
+ *ENDIF
+ NSEL,S,LOC,Z,LENGTH/2-EPSLOC,LENGTH/2+EPSLOC
+ F,ALL,FZ,FATOT/NTOP
+ NID=NDNEXT(0)
+ *DO,JJ,1,NTOP
+  *GET,XN,NODE,NID,LOC,X
+  *GET,YN,NODE,NID,LOC,Y
+  FXT=-TORQ*YN/NR2SUM
+  FYT= TORQ*XN/NR2SUM
+  F,NID,FX,FXT
+  F,NID,FY,FYT
+  NID=NDNEXT(NID)
+ *ENDDO
+ ALLSEL,ALL
+ TIME,IC
+ SOLVE
+ *USE,export_notch
+ /SOLU
+*ENDDO
+FINISH
