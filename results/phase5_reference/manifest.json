@@ -1,0 +1,22 @@
+{
+  "phase": 5,
+  "source": "results/phase4_reference/selected_cases.json",
+  "case_ids": [2213, 1739, 6920, 7348],
+  "criterion": "FS_ext",
+  "harmonic_only": true,
+  "reported_amplitude": "mce",
+  "material": {"E_mpa": 210000.0, "nu": 0.3, "sigma_y_mpa": 600.0, "k_fs": 0.4},
+  "ideal_cube_side_mm": 5.0,
+  "tube_geometry": {"D_int_mm": 12.0, "thickness_mm": 1.5},
+  "tube_positive_pressure_fit_location": "outer",
+  "tube_wall_check_radii": 11,
+  "optimisation_orientation_seeds": "case ID, 19, 101",
+  "verification": {
+    "opposite_face_force_and_moment_balanced": true,
+    "independent_global_maximum_comparison": true,
+    "original_case_2213_three_normal_exact": true,
+    "original_case_1739_plane_stress_exact": true,
+    "local_pytest_total_passed": 51
+  },
+  "caution": "Ideal local traction equivalence and tensor projection do not prove fatigue-rig feasibility."
+}
