@@ -1,0 +1,276 @@
+! SELF-CONTAINED ANSYS MAPDL input - no other .mac files needed.
+! Generated from PR #7 baseline on 2026-10-28 after error:
+!   Cannot find macro file named export_notch.
+! Units: mm, N, MPa; one static solve each for unit p, F, torque.
+! Run with File > Read Input from ... in ANSYS MAPDL 2025 R2.
+! Python postprocessing: these 3 solves are independent UNIT INFLUENCES.
+! CAUTION: finite element model not verified by running MAPDL here.
+! Phase 6 follow-up: off-axis SINGLE exterior spherical notch on hollow tube.
+! Three independent static solves, representing either harmonic mean/sine/cosine
+! or the influence functions for p, F, T. No ANSYS execution claimed.
+! Local Cartesian axes: Z=tube axis, X=notch radial direction (+X), Y=tangent.
+! mm, N, MPa, N mm. Full 360-degree 3-D mesh. No axisymmetric shortcut.
+! Run in apdl directory. Set BASIS_MODE=1 for influence calibration.
+FINISH
+/CLEAR,START
+/FILNAME,notched_tube
+/PREP7
+RI=6.0
+RO=7.5
+LENGTH=48.0
+NOTCH_R=1.5
+NOTCH_D=0.45
+NOTCH_ON=0
+MESH_H=0.75
+GAUGE_X=2.0
+GAUGE_Y=2.5
+GAUGE_Z=2.5
+E_MOD=210000
+POISS=0.30
+! 1: unit pressure (1 MPa), force (1000 N), torque (1000 N mm).
+! 0: physically constrained harmonic mean/sine/cosine, from notch_loads.mac.
+BASIS_MODE=1
+! Reset all export files before running (do not append to old jobs).
+*CFOPEN,fe_stress,csv
+*CFCLOS
+*CFOPEN,fe_strain,csv
+*CFCLOS
+*CFOPEN,fe_coordinates,csv
+*CFCLOS
+! 1=closed ends and pressure thrust acts through wall, 0=compensated by rig.
+CLOSED_END=1
+*IF,RI,LE,0,THEN
+ /COM,ERROR: RI must be positive.
+ /EXIT,NOSAVE
+*ENDIF
+*IF,RO,LE,RI,THEN
+ /COM,ERROR: RO must exceed RI.
+ /EXIT,NOSAVE
+*ENDIF
+*IF,NOTCH_D,LE,0,THEN
+ /COM,ERROR: notch depth must be positive.
+ /EXIT,NOSAVE
+*ENDIF
+*IF,NOTCH_D,GE,RO-RI,THEN
+ /COM,ERROR: notch penetrates full wall.
+ /EXIT,NOSAVE
+*ENDIF
+*IF,NOTCH_D,GE,NOTCH_R,THEN
+ /COM,ERROR: require shallow spherical dimple (D < R).
+ /EXIT,NOSAVE
+*ENDIF
+*DIM,CTRL,ARRAY,3,3
+*IF,BASIS_MODE,EQ,1,THEN
+ ! Unit influence loads (pressure, axial force, torque).
+ ! Three SEPARATE response solves, not harmonic coefficients.
+ ! BASIS 1: 1 MPa bore pressure; BASIS 2: 1000 N axial machine force;
+ ! BASIS 3: 1000 N mm applied torque. Pressure thrust automatically included.
+ CTRL(1,1)=1
+ CTRL(2,2)=1000
+ CTRL(3,3)=1000
+*ELSE
+ ! Optional manually defined harmonic load coefficients.
+ ! Illustrative physically nonnegative pressure / F / T history.
+ ! Rows = mean, sine and cosine; columns = p_i (MPa), F(N), T(Nmm).
+ ! Pressure mean=22 MPa, amplitude=15 MPa, min 7 MPa.
+ CTRL(1,1)=22
+ CTRL(2,1)=15
+ CTRL(3,1)=0
+ CTRL(1,2)=0
+ CTRL(2,2)=8000
+ CTRL(3,2)=4500
+ CTRL(1,3)=0
+ CTRL(2,3)=-12000
+ CTRL(3,3)=28000
+*ENDIF
+ET,1,187
+MP,EX,1,E_MOD
+MP,PRXY,1,POISS
+TYPE,1
+MAT,1
+! Cylinder working plane begins at Z=-LENGTH/2.
+WPCSYS,-1,0
+WPOFFS,0,0,-LENGTH/2
+CYL4,0,0,RI,0,RO,360,LENGTH
+*GET,TUBEID,VOLU,0,NUM,MAX
+! Return WP to global; spherical cutter lies OUTSIDE wall in +X.
+*IF,NOTCH_ON,EQ,1,THEN
+ WPCSYS,-1,0
+ NOTCH_C=RO+NOTCH_R-NOTCH_D
+ WPOFFS,NOTCH_C,0,0
+ SPHERE,0,NOTCH_R
+ *GET,TOOLID,VOLU,0,NUM,MAX
+ ! Boolean creates genuine off-axis external free notch; bore remains intact.
+ VSBV,TUBEID,TOOLID
+*ENDIF
+ALLSEL,ALL
+*GET,NVOL,VOLU,0,COUNT
+*IF,NVOL,LT,1,THEN
+ /COM,ERROR: no surviving solid after notch cut.
+ /EXIT,NOSAVE
+*ENDIF
+! Reset WP and construct full 3D unstructured quadratic tetrahedral mesh.
+WPCSYS,-1,0
+CSYS,0
+MSHKEY,0
+MSHAPE,1,3
+ESIZE,MESH_H
+VMESH,ALL
+ALLSEL,ALL
+*GET,NE,ELEM,0,COUNT
+*IF,NE,LT,1,THEN
+ /COM,ERROR: mesh empty.
+ /EXIT,NOSAVE
+*ENDIF
+! Rigid grips idealised with bottom annular end fixed in all translation.
+! This is a SCREENING model: actual grips, shoulder fillets and seal are absent.
+EPSLOC=0.02
+NSEL,S,LOC,Z,-LENGTH/2-EPSLOC,-LENGTH/2+EPSLOC
+*GET,NBASE,NODE,0,COUNT
+*IF,NBASE,LT,1,THEN
+ /COM,ERROR: bottom end nodes absent.
+ /EXIT,NOSAVE
+*ENDIF
+D,ALL,UX,0
+D,ALL,UY,0
+D,ALL,UZ,0
+ALLSEL,ALL
+! Compute top end nodal moment denominator, for balanced tangential
+! nodal loading: FX=-T*Y/SUM(R**2), FY=T*X/SUM(R**2).
+NSEL,S,LOC,Z,LENGTH/2-EPSLOC,LENGTH/2+EPSLOC
+*GET,NTOP,NODE,0,COUNT
+*IF,NTOP,LT,1,THEN
+ /COM,ERROR: top end nodes absent.
+ /EXIT,NOSAVE
+*ENDIF
+NR2SUM=0
+NID=NDNEXT(0)
+*DO,JJ,1,NTOP
+ *GET,XN,NODE,NID,LOC,X
+ *GET,YN,NODE,NID,LOC,Y
+ NR2SUM=NR2SUM+XN*XN+YN*YN
+ NID=NDNEXT(NID)
+*ENDDO
+ALLSEL,ALL
+FINISH
+/SOLU
+ANTYPE,STATIC
+NLGEOM,OFF
+OUTRES,ALL,ALL
+*DO,IC,1,3
+ ALLSEL,ALL
+ FDELE,ALL,ALL
+ SFDELE,ALL,PRES
+ PI=CTRL(IC,1)
+ FA=CTRL(IC,2)
+ TORQ=CTRL(IC,3)
+ ! Only the internal CYLINDRICAL bore is pressurised; no pressure on the
+ ! external notch. CSYS,1 gives radial coordinate in NSEL,LOC,X.
+ CSYS,1
+ NSEL,S,LOC,X,RI-0.01,RI+0.01
+ *GET,NBOR,NODE,0,COUNT
+ *IF,NBOR,LT,1,THEN
+  /COM,ERROR: no internal bore nodes selected.
+  /EXIT,NOSAVE
+ *ENDIF
+ SF,ALL,PRES,PI
+ ALLSEL,ALL
+ CSYS,0
+ ! Pressure thrust from closed ends is added once to top axial load.
+ ! Machine axial force FA is independent of this hydraulic thrust.
+ FATOT=FA
+ *IF,CLOSED_END,EQ,1,THEN
+  FATOT=FA+PI*3.141592653589793*RI*RI
+ *ENDIF
+ NSEL,S,LOC,Z,LENGTH/2-EPSLOC,LENGTH/2+EPSLOC
+ F,ALL,FZ,FATOT/NTOP
+ NID=NDNEXT(0)
+ *DO,JJ,1,NTOP
+  *GET,XN,NODE,NID,LOC,X
+  *GET,YN,NODE,NID,LOC,Y
+  FXT=-TORQ*YN/NR2SUM
+  FYT= TORQ*XN/NR2SUM
+  F,NID,FX,FXT
+  F,NID,FY,FYT
+  NID=NDNEXT(NID)
+ *ENDDO
+ ALLSEL,ALL
+ TIME,IC
+ SOLVE
+
+! 3D notch-region tensor export; same CSV layout as Phase 6 Python parser.
+! IC is solved basis index. Data: 1,2,3 + element ID + six comps.
+! The selected region includes the SUBSURFACE, not only free notch face.
+FINISH
+/POST1
+SET,IC
+RSYS,0
+CSYS,0
+ALLSEL,ALL
+! Select region near +X notch center at midspan Z=0.
+ESEL,S,CENT,X,RO-NOTCH_D-GAUGE_X,RO+0.5
+ESEL,R,CENT,Y,-GAUGE_Y,GAUGE_Y
+ESEL,R,CENT,Z,-GAUGE_Z,GAUGE_Z
+*GET,NGAUGE,ELEM,0,COUNT
+*IF,NGAUGE,LT,1,THEN
+ /COM,ERROR: no notch-region elements selected; check GAUGE dimensions.
+ /EXIT,NOSAVE
+*ENDIF
+ETABLE,ERAS
+ETABLE,SX,S,X
+ETABLE,SY,S,Y
+ETABLE,SZ,S,Z
+ETABLE,SXY,S,XY
+ETABLE,SYZ,S,YZ
+ETABLE,SXZ,S,XZ
+ETABLE,EX,EPEL,X
+ETABLE,EY,EPEL,Y
+ETABLE,EZ,EPEL,Z
+ETABLE,EXY,EPEL,XY
+ETABLE,EYZ,EPEL,YZ
+ETABLE,EXZ,EPEL,XZ
+*CFOPEN,fe_stress,csv,,APPEND
+EID=ELNEXT(0)
+*DO,II,1,NGAUGE
+ *GET,V1,ELEM,EID,ETAB,SX
+ *GET,V2,ELEM,EID,ETAB,SY
+ *GET,V3,ELEM,EID,ETAB,SZ
+ *GET,V4,ELEM,EID,ETAB,SXY
+ *GET,V5,ELEM,EID,ETAB,SYZ
+ *GET,V6,ELEM,EID,ETAB,SXZ
+ *VWRITE,IC,EID,V1,V2,V3,V4,V5,V6
+(8(E18.10,:,','))
+ EID=ELNEXT(EID)
+*ENDDO
+*CFCLOS
+*CFOPEN,fe_strain,csv,,APPEND
+EID=ELNEXT(0)
+*DO,II,1,NGAUGE
+ *GET,V1,ELEM,EID,ETAB,EX
+ *GET,V2,ELEM,EID,ETAB,EY
+ *GET,V3,ELEM,EID,ETAB,EZ
+ *GET,V4,ELEM,EID,ETAB,EXY
+ *GET,V5,ELEM,EID,ETAB,EYZ
+ *GET,V6,ELEM,EID,ETAB,EXZ
+ *VWRITE,IC,EID,V1,V2,V3,V4,V5,V6
+(8(E18.10,:,','))
+ EID=ELNEXT(EID)
+*ENDDO
+*CFCLOS
+*CFOPEN,fe_coordinates,csv,,APPEND
+EID=ELNEXT(0)
+*DO,II,1,NGAUGE
+ *GET,XV,ELEM,EID,CENT,X
+ *GET,YV,ELEM,EID,CENT,Y
+ *GET,ZV,ELEM,EID,CENT,Z
+ *VWRITE,IC,EID,XV,YV,ZV
+(5(E18.10,:,','))
+ EID=ELNEXT(EID)
+*ENDDO
+*CFCLOS
+ALLSEL,ALL
+FINISH
+
+ /SOLU
+*ENDDO
+FINISH
